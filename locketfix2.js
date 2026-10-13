@@ -1,53 +1,48 @@
-// locketfix2.js — spoof Locket Gold via revenuecat response
-var body = $response.body;
+// locketfix2.js — RevenueCat response spoof for Locket Gold
+// Stash/Surge-compatible
+
+const url = $request.url;
+let body = $response.body;
 
 try {
-  var obj = JSON.parse(body);
+  let data = JSON.parse(body);
 
-  if (obj && obj.subscriber) {
-    var now = new Date();
-    var future = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
-    var nowISO = now.toISOString();
-    var futureISO = future.toISOString();
+  const ENTITLEMENT  = "Gold";
+  const PRODUCT_ID   = "cam.locket.app.gold.yearly";
+  const EXPIRES      = "2099-12-31T23:59:59Z";
+  const PURCHASED    = "2024-01-01T00:00:00Z";
 
-    var fakeEnt = {
-      expires_date: futureISO,
-      grace_period_expires_date: null,
-      product_identifier: "com.locket.Locket.gold.monthly",
-      purchase_date: nowISO
-    };
+  const fakeEntitlement = {
+    expires_date: EXPIRES,
+    grace_period_expires_date: null,
+    product_identifier: PRODUCT_ID,
+    purchase_date: PURCHASED
+  };
 
-    var fakeSub = {
-      auto_resume_date: null,
-      billing_issues_detected_at: null,
-      expires_date: futureISO,
-      grace_period_expires_date: null,
-      is_sandbox: false,
-      original_purchase_date: nowISO,
-      ownership_type: "PURCHASED",
-      period_type: "normal",
-      product_plan_identifier: null,
-      purchase_date: nowISO,
-      refunded_at: null,
-      store: "app_store",
-      unsubscribe_detected_at: null
-    };
+  const fakeSub = {
+    auto_resume_date: null,
+    billing_issues_detected_at: null,
+    expires_date: EXPIRES,
+    grace_period_expires_date: null,
+    is_sandbox: false,
+    original_purchase_date: PURCHASED,
+    ownership_type: "PURCHASED",
+    period_type: "normal",
+    purchase_date: PURCHASED,
+    refund_at: null,
+    store: "app_store",
+    unsubscribe_detected_at: null
+  };
 
-    if (!obj.subscriber.entitlements) obj.subscriber.entitlements = {};
-    if (!obj.subscriber.subscriptions) obj.subscriber.subscriptions = {};
+  if (!data.subscriber) data.subscriber = {};
 
-    // inject cả 3 tên có thể dùng
-    obj.subscriber.entitlements["gold"] = fakeEnt;
-    obj.subscriber.entitlements["locket_gold"] = fakeEnt;
-    obj.subscriber.entitlements["pro"] = fakeEnt;
+  data.subscriber.entitlements = data.subscriber.entitlements || {};
+  data.subscriber.entitlements[ENTITLEMENT] = fakeEntitlement;
 
-    obj.subscriber.subscriptions["com.locket.Locket.gold.monthly"] = fakeSub;
-    obj.subscriber.subscriptions["com.locket.Locket.gold.annual"] = fakeSub;
+  data.subscriber.subscriptions = data.subscriber.subscriptions || {};
+  data.subscriber.subscriptions[PRODUCT_ID] = fakeSub;
 
-    $done({ body: JSON.stringify(obj) });
-  } else {
-    $done({});
-  }
+  $done({ body: JSON.stringify(data) });
 } catch (e) {
-  $done({});
+  $done({ body });
 }
