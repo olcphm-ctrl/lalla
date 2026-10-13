@@ -1,9 +1,11 @@
-// header.js — strip etag headers to force 200 response with body
-var headers = $request.headers;
+// header.js — request header cleaner
+// Stash/Surge-compatible
 
-delete headers["X-Revenuecat-Etag"];
-delete headers["x-revenuecat-etag"];
+let headers = $request.headers;
+
+// Xoá headers khiến RC bỏ qua cached response
 delete headers["If-None-Match"];
-delete headers["if-none-match"];
+delete headers["If-Modified-Since"];
+delete headers["Cache-Control"];
 
-$done({ headers: headers });
+$done({ headers });
