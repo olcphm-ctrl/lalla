@@ -1,11 +1,10 @@
 /**
- * locket-sub.js  v2.0
+ * locket-sub.js  v2.1
  * Locket — RevenueCat subscriber / receipts response patch
  *
- * Inject Gold subscription + entitlement vào response.
- * Hoạt động với cả receipts lẫn subscribers endpoint.
- * Forward-compatible: giữ nguyên mọi field server trả về,
- * chỉ thêm / override phần subscription/entitlement.
+ * Thay đổi so với v2.0:
+ *   - Thêm subscriptions['Gold'] + entitlements['Locket'].product_identifier = 'Gold'
+ *   - App check string 'Gold' để unlock 30s / voice / video 10s
  *
  * Target : api.revenuecat.com  (receipts$  |  subscribers/[id]$)
  * Type   : http-response
@@ -30,10 +29,9 @@
         return;
     }
 
-    // ── Fake Gold subscription record ─────────────────────────────────────
-    var GOLD_SKU   = "locket_1600_1y";
-    var EXPIRES    = "9999-01-01T00:00:00Z";
-    var PURCHASE   = "2020-01-01T00:00:00Z";
+    var GOLD_SKU = "locket_1600_1y";
+    var EXPIRES  = "9999-01-01T00:00:00Z";
+    var PURCHASE = "2020-01-01T00:00:00Z";
 
     var goldSub = {
         auto_resume_date:           null,
@@ -50,47 +48,52 @@
         purchase_date:              PURCHASE,
         refunded_at:                null,
         store:                      "app_store",
-        store_transaction_id:       "2000000000000001",
+        store_transaction_id:       "2000001108724193",
         unsubscribe_detected_at:    null
     };
 
-    var goldEnt = {
-        expires_date:       EXPIRES,
-        grace_period_expires_date: null,
-        product_identifier: GOLD_SKU,
-        purchase_date:      PURCHASE
-    };
+    function makeEnt(pid) {
+        return {
+            expires_date:              EXPIRES,
+            grace_period_expires_date: null,
+            product_identifier:        pid,
+            purchase_date:             PURCHASE
+        };
+    }
 
-    // ── Inject vào subscriber object ──────────────────────────────────────
     function patchSubscriber(sub) {
-        sub.subscriptions = sub.subscriptions || {};
-        sub.entitlements  = sub.entitlements  || {};
-        sub.non_subscriptions       = sub.non_subscriptions       || {};
-        sub.other_purchases         = sub.other_purchases         || {};
+        sub.subscriptions     = sub.subscriptions     || {};
+        sub.entitlements      = sub.entitlements      || {};
+        sub.non_subscriptions = sub.non_subscriptions || {};
+        sub.other_purchases   = sub.other_purchases   || {};
 
-        // Subscription record — key theo SKU
+        // SKU thực — subscription record
         sub.subscriptions[GOLD_SKU] = goldSub;
 
-        // Entitlements — cover nhiều key name app có thể check
-        var entKeys = ["Gold", "gold", "GOLD", "Locket", "locket", "premium", "Premium"];
-        entKeys.forEach(function (k) {
-            sub.entitlements[k] = goldEnt;
+        // NightMarket-compatible: key 'Gold', product_identifier = 'Gold'
+        // App map string này → unlock 30s, voice, video 10s
+        sub.subscriptions["Gold"]  = goldSub;
+        sub.entitlements["Locket"] = makeEnt("Gold");
+
+        // Cover thêm naming variants
+        ["Gold", "gold", "GOLD", "premium", "Premium"].forEach(function (k) {
+            sub.entitlements[k] = makeEnt(GOLD_SKU);
         });
 
         return sub;
     }
 
-    // RevenueCat trả về { subscriber: {...} }
+    // RevenueCat wrapped: { subscriber: {...} }
     if (obj.subscriber) {
         obj.subscriber = patchSubscriber(obj.subscriber);
     }
 
-    // Một số endpoint trả về { subscribers: [{...}] }
+    // Array variant: { subscribers: [{...}] }
     if (Array.isArray(obj.subscribers)) {
         obj.subscribers = obj.subscribers.map(patchSubscriber);
     }
 
-    // Nếu response là subscriber object trực tiếp (không wrapped)
+    // Unwrapped subscriber object
     if (obj.subscriptions !== undefined || obj.entitlements !== undefined) {
         obj = patchSubscriber(obj);
     }
