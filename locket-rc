@@ -1,24 +1,11 @@
 /**
- * locket-rc.js  v2.0
+ * locket-rc.js  v2.1
  * Locket — Firebase Remote Config response patch
- *
- * Mở khóa Gold, tắt quảng cáo, bật video 30s.
- *
- * Chiến lược forward-compatible (hoạt động lâu dài):
- *   1. Parse response của server, GIỮ NGUYÊN mọi key server gửi về.
- *   2. Merge (additive) — chỉ ADD/OVERRIDE các key cần thiết.
- *   3. Từng section wrap try-catch riêng → 1 section lỗi không ảnh hưởng section khác.
- *   4. Detect version app từ User-Agent để adapt nếu cần.
- *
- * Target : firebaseremoteconfig.googleapis.com/v1/projects/locket-4252a/*
- * Type   : http-response
- * Tested : Locket 3.x – 6.x
  *
  * GitHub : olcphm-ctrl/locket-scripts
  */
 
 (function () {
-    // ── Version detection ─────────────────────────────────────────────────
     var ua = $request.headers["User-Agent"] || $request.headers["user-agent"] || "";
     if (!ua.includes("Locket")) {
         $done({ body: $response.body });
@@ -35,7 +22,6 @@
         ];
     }
 
-    // ── Parse response ────────────────────────────────────────────────────
     var obj;
     try {
         obj = JSON.parse($response.body);
@@ -45,8 +31,8 @@
     }
 
     obj.entries = obj.entries || {};
+    obj.state   = "UPDATE";     // ← v2.1 fix: force app apply config thay vì dùng cache
 
-    // ── Helper: merge an object into entries (stringify sub-objects) ──────
     function mergeEntries(patch) {
         Object.keys(patch).forEach(function (k) {
             var v = patch[k];
@@ -54,7 +40,6 @@
         });
     }
 
-    // Helper: merge deep into a JSON-string entry
     function mergeJsonEntry(key, patch) {
         var base = {};
         try { base = JSON.parse(obj.entries[key] || "{}"); } catch (e) {}
@@ -80,7 +65,6 @@
             video:                "enabled",
             custom_widget_frames: "enabled",
             streak_recovery:      "enabled",
-            // future-proof extras seen in newer builds
             locket_gold:          "enabled",
             gold_features:        "enabled",
             premium:              "enabled"
@@ -88,7 +72,7 @@
         obj.entries["feature_gates"] = JSON.stringify(fgBase);
     } catch (e) {}
 
-    // ── 2. Upsell / paywall — tắt hoàn toàn ──────────────────────────────
+    // ── 2. Upsell / paywall ───────────────────────────────────────────────
     try {
         mergeEntries({
             upsell_features: {
@@ -107,37 +91,18 @@
                 interval:          2592000,
                 profile_banner:    false
             },
-            feature_discovery_popup_config: {
-                tag:              "LOCKET GOLD",
-                tag_gradient:     true,
-                tag_style:        "gold_gradient",
-                title:            "Đã kích hoạt 💛",
-                feature_set:      [],
-                primary_button_title: "OK",
-                campaign:         "locket_gold_custom",
-                start_at:         "2020-01-01T00:00:00",
-                end_at:           "2099-12-31T23:59:59",
-                use_local_time_zone: true
-            },
             android_subscribe_gold_button_enabled: "false",
-            profile_badge_visible:                 "true",
-            lunar_new_year_app_icon_enabled:       "true"
+            profile_badge_visible:                 "true"
         });
     } catch (e) {}
 
-    // ── 3. Ads — tắt hoàn toàn ───────────────────────────────────────────
+    // ── 3. Ads ────────────────────────────────────────────────────────────
     try {
         mergeEntries({
             history_ads_mode:                           "off",
             history_ads_prefetch_count:                 "0",
             history_ads_prefetch_immediate:             "false",
-            history_ads_prefetch_reroute:               "false",
             history_ads_dynamic_insertion:              "false",
-            history_ads_refresh_prefetch_on_foreground: "false",
-            history_ads_floor_price:                    "0",
-            history_ads_floor_price_att:                "0",
-            history_ad_log_displayed_on_background:     "false",
-            history_ads_debug_menu:                     "false",
             ads_enabled:                                "false",
             show_ads:                                   "false",
             interstitial_ads_enabled:                   "false",
@@ -145,7 +110,7 @@
         });
     } catch (e) {}
 
-    // ── 4. Sentry / analytics — tắt tracking ─────────────────────────────
+    // ── 4. Sentry ─────────────────────────────────────────────────────────
     try {
         mergeEntries({
             sentry_sample_rate:           "0",
@@ -156,7 +121,7 @@
         });
     } catch (e) {}
 
-    // ── 5. Camera — 30s, full features ───────────────────────────────────
+    // ── 5. Camera — 30s ───────────────────────────────────────────────────
     try {
         mergeJsonEntry("camera", {
             gold_max_duration:  30.0,
@@ -166,17 +131,13 @@
             ultra_wide:         true,
             ultraWide:          true,
             volume_button:      true,
-            volumeButton:       true,
             flash_button:       true,
             telephoto:          true,
-            srgb:               true,
-            lanczos:            true,
-            quality_mbps:       0.9,
-            qualityMbps:        0.9
+            quality_mbps:       0.9
         });
     } catch (e) {}
 
-    // ── 6. Camera roll — 30s ─────────────────────────────────────────────
+    // ── 6. Camera roll — 30s ──────────────────────────────────────────────
     try {
         mergeJsonEntry("camera_roll", {
             gold_max_duration:        30.0,
@@ -184,19 +145,16 @@
             video_max_duration:       30.0,
             videoMaxDuration:         30.0,
             max_duration:             30.0,
-            maxDuration:              30.0,
             trim_max_duration:        30.0,
-            trimMaxDuration:          30.0,
             camera_roll_max_duration: 30.0,
             quality_mbps:             0.9,
-            qualityMbps:              0.9,
             flash_button:             true
         });
     } catch (e) {}
 
-    // ── 7. Flat duration keys — cover mọi naming convention ──────────────
+    // ── 7. Flat duration keys ─────────────────────────────────────────────
     try {
-        var durationKeys = [
+        [
             "camera_roll_video_max_duration",
             "camera_roll_max_duration",
             "camera_roll_duration",
@@ -208,26 +166,17 @@
             "goldMaxDuration",
             "maxDuration",
             "max_duration"
-        ];
-        durationKeys.forEach(function (k) { obj.entries[k] = "30.0"; });
+        ].forEach(function (k) { obj.entries[k] = "30.0"; });
 
         mergeEntries({
             camera_roll_preview_enabled:               "true",
             camera_roll_video_enabled:                 "true",
             camera_roll_video_upload_enabled:          "true",
-            internal_camera_roll_video_upload_enabled: "true",
             longer_camera_roll_videos_enabled:         "true",
-            video_quality_mbps:                        "0.9",
             video_sound_enabled:                       "true",
             microphone_enabled:                        "true",
             camera_microphone_enabled:                 "true",
-            audio_session_deactivation_enabled:        "true",
-            zoom_enabled:                              "true",
-            upload_main:                               "false",
-            upload_main_image_quality:                 "1.0",
-            upload_main_image_size:                    "1440",
-            upload_thumbnail_image_quality:            "1.0",
-            upload_thumbnail_image_size:               "1020"
+            zoom_enabled:                              "true"
         });
     } catch (e) {}
 
@@ -241,27 +190,15 @@
         });
     } catch (e) {}
 
-    // ── 9. Friends & limits ───────────────────────────────────────────────
+    // ── 9. Friends ────────────────────────────────────────────────────────
     try {
         mergeEntries({
             max_friends_count:                    "999999",
             friend_limit_mode:                    "0",
             soft_friend_limit_threshold_count:    "999999",
             show_friend_limit_on_cam:             "false",
-            signup_max_friends_count:             "999999",
-            celebrity_inbox_limit:                "999999",
-            friend_limit_geo_override:            { experiments: {}, area_code_overrides: {} },
-            new_friends_monitoring_enabled:       "true",
-            improved_friend_suggestions:          "true",
-            show_friend_suggestions_by_default:   "true",
-            emoji_friend_suggestions:             "true",
             hide_friends_enabled:                 "true",
-            hide_invite_links:                    "false",
-            hide_skip_contacts:                   "true",
-            show_all_contacts:                    "true",
-            show_invite_suggestions:              "true",
-            show_no_friends_bottom_sheet:         "false",
-            signup_allow_skip_add_friends:        "true"
+            show_all_contacts:                    "true"
         });
     } catch (e) {}
 
@@ -275,126 +212,49 @@
         obj.entries["streak_config"]  = JSON.stringify(streak);
     } catch (e) {}
 
-    // ── 11. Moments, chat, interactions ──────────────────────────────────
+    // ── 11. Moments, chat ─────────────────────────────────────────────────
     try {
         mergeEntries({
-            moment_views_enabled:               "true",
-            moment_views_v2:                    "true",
-            record_moment_views:                "true",
-            notify_moment_views:                "true",
-            get_moment_views_as_cloud_function: "true",
-            moment_reactions_v2:                "true",
-            chat_reactions_enabled:             "true",
-            conversation_reactions:             "true",
-            typing_indicators_enabled:          "true",
-            unsend_message_enabled:             "true",
-            reply_prototype_enabled:            "true",
-            messages_integration:               "true",
-            conversations_enabled:              "true",
-            fetch_moments_in_conversation:      "true",
-            hide_chat_button:                   "false",
-            groups_enabled:                     "true",
-            send_to_self_only_mode:             "always_enabled",
-            time_travel_rewind_v2_enabled:      "true",
-            calendar_delete_moment_enabled:     "true",
-            calendar_rewind_enabled:            "false",
-            rollcall_enabled:                   "true",
-            rollcall_comment_actions:           "true",
-            rollcall_profile_button:            "true"
+            moment_views_enabled:           "true",
+            moment_reactions_v2:            "true",
+            chat_reactions_enabled:         "true",
+            typing_indicators_enabled:      "true",
+            unsend_message_enabled:         "true",
+            conversations_enabled:          "true",
+            groups_enabled:                 "true",
+            rollcall_enabled:               "true"
         });
     } catch (e) {}
 
-    // ── 12. Widget, notification, UI ─────────────────────────────────────
+    // ── 12. Widget, UI ────────────────────────────────────────────────────
     try {
         mergeEntries({
-            widget_frame_event_max_images:   "5",
             widget_badge_enabled:            "true",
             widget_badge_v2:                 "true",
-            widget_stale_state_enabled:      "false",
-            widget_last_sent_indicator:      "false",
-            widget_sync_token_reload_mode:   "clearTokenNever",
             notification_preferences:        "true",
-            notification_reply_body_visible: "true",
             activity_bar_enabled:            "true",
-            journal_activity_bar_enabled:    "true",
-            journal_settings: {
-                debug_menu_enabled:                  false,
-                focus_animation:                     true,
-                compact_header:                      true,
-                friends_button:                      true,
-                reverse_scroll_direction:            false,
-                streak_visualization:                true,
-                streak_visualization_style:          "gradient",
-                streak_header_minimum_count:         0,
-                streak_visualization_minimum_count:  2,
-                overlay_indicators: { location: true, music: true, static_content: true, weather: true }
-            },
-            qr_code_config:          { profile_enabled: true, scanning_enabled: true },
-            custom_profile_pics:     "true",
-            profile_menu_v2_enabled: "true"
+            custom_profile_pics:             "true",
+            profile_menu_v2_enabled:         "true"
         });
     } catch (e) {}
 
-    // ── 13. CDN, cache, system ────────────────────────────────────────────
+    // ── 13. CDN, cache ────────────────────────────────────────────────────
     try {
         mergeEntries({
-            cdn_domain_replacements: {
-                "firebasestorage.googleapis.com": "cdn.locketcamera.com"
-            },
-            cdn_domain_replacements_video:         "true",
-            storage_bucket:                        "gs://locket-img",
-            storage_bucket_video:                  "gs://locket-video",
-            image_cache_max_age_sec:              "157680000",
-            image_cache_max_size:                 "400000000",
-            history_cache_age_days:               "1000",
-            image_fetch_cache:                    "true",
-            image_cache_use_shared:               "true",
-            efficient_history_cache_invalidation: "true",
-            get_latest_moment_v2:                 "true",
-            refresh_interval:                     "60",
-            firestore_refresh_v2:                 "true",
-            firestore_refresh_v3:                 "true",
-            beta_features_enabled:                "true",
-            safety_center:                        "true",
-            help_center:                          "true",
-            support_v2:                           "true",
-            privacy_choices_setting:              "true",
-            request_att_permission:               "true"
+            cdn_domain_replacements:       { "firebasestorage.googleapis.com": "cdn.locketcamera.com" },
+            image_cache_max_age_sec:       "157680000",
+            image_cache_max_size:          "400000000",
+            get_latest_moment_v2:          "true",
+            beta_features_enabled:         "true"
         });
     } catch (e) {}
 
-    // ── 14. Captions, overlays, filters ──────────────────────────────────
+    // ── 14. Captions, filters ─────────────────────────────────────────────
     try {
         mergeEntries({
             captions_enabled:                   "true",
             music_caption_enabled:              "true",
-            music_caption_song_preview_enabled: "true",
-            link_caption_link_enabled:          "true",
-            overlay_navigator_enabled:          "true",
-            overlays_v2_config:                 { suggestions_enabled: true },
-            camera_filter_config: {
-                allows_custom_filters:  true,
-                show_filter_button:     true,
-                sheet_enabled:          true,
-                open_sheet_immediately: true,
-                sheet_filters: [
-                    { title: { en: "Goofy"    }, filter_ids: ["okay_wig","influencer","looks_maxxing","toothless","bye_brows"] },
-                    { title: { en: "Looks"    }, filter_ids: ["bowling_ball","blonde_bleached","beard","bob_cut","buns","tatted","mohawk","braces","bye_brows"] },
-                    { title: { en: "Celebrate"}, filter_ids: ["slimed","princess","disco_lights","cash_money","happy_birthday"] },
-                    { title: { en: "Cute"     }, filter_ids: ["cutesy","sticker_face","flower_crown","love_bug"] },
-                    { title: { en: "Costumes" }, filter_ids: ["wedding","cowboy_cowgirl","giraffe","clown"] },
-                    { title: { en: "Holidays" }, filter_ids: ["easter_bunney_cutout","easter_chick_cutout","bearded","leprechaun","lucky_face","sweet_hearts","elf_cutout","santa_cutout","frosty"] }
-                ],
-                picker_filters: [
-                    "okay_wig","influencer","looks_maxxing","toothless","bye_brows",
-                    "bowling_ball","blonde_bleached","beard","bob_cut","buns","tatted","mohawk","braces",
-                    "slimed","princess","disco_lights","cash_money","happy_birthday",
-                    "cutesy","sticker_face","flower_crown","love_bug",
-                    "wedding","cowboy_cowgirl","giraffe","clown",
-                    "easter_bunney_cutout","easter_chick_cutout","bearded","leprechaun",
-                    "lucky_face","sweet_hearts","elf_cutout","santa_cutout","frosty"
-                ]
-            }
+            overlay_navigator_enabled:          "true"
         });
     } catch (e) {}
 
