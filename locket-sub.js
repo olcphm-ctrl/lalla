@@ -1,7 +1,9 @@
 /**
- * locket-sub.js  v2.1
+ * locket-sub.js  v3.0
  * Locket — RevenueCat subscriber/receipts response patch
- * Injects active Gold entitlement
+ *
+ * v3.0 — non_subscriptions, other_purchases, active_subscriptions list,
+ *         extended entitlement key coverage, shared date constants
  *
  * Target: api.revenuecat.com — receipts & subscribers endpoints
  * Type:   http-response
@@ -9,13 +11,23 @@
  * Maintainer: tự host — không phụ thuộc server ngoài
  */
 
-var ua  = $request.headers["User-Agent"] || $request.headers["user-agent"] || "";
-var obj = JSON.parse($response.body);
+var ua = $request.headers["User-Agent"] || $request.headers["user-agent"] || "";
 
 if (!ua.includes("Locket")) {
     $done({ body: $response.body });
     return;
 }
+
+var obj;
+try {
+    obj = JSON.parse($response.body);
+} catch (e) {
+    $done({ body: $response.body });
+    return;
+}
+
+var now       = "2024-01-01T00:00:00Z";
+var farFuture = "9999-01-09T10:10:14Z";
 
 var goldSub = {
     auto_resume_date:           null,
@@ -26,46 +38,73 @@ var goldSub = {
     management_url:             "https://apps.apple.com/account/subscriptions",
     period_type:                "normal",
     price:                      { amount: 399000.0, currency: "VND" },
-    expires_date:               "9999-01-09T10:10:14Z",
+    expires_date:               farFuture,
     grace_period_expires_date:  null,
     refunded_at:                null,
     unsubscribe_detected_at:    null,
-    original_purchase_date:     "2024-01-01T00:00:00Z",
-    purchase_date:              "2024-01-01T00:00:00Z",
+    original_purchase_date:     now,
+    purchase_date:              now,
     store:                      "app_store",
     store_transaction_id:       "2000001108724193"
 };
 
-var goldEntitlement = {
-    grace_period_expires_date: null,
-    purchase_date:             "2024-01-01T00:00:00Z",
-    product_identifier:        "locket_1600_1y",
-    expires_date:              "9999-01-09T10:10:14Z"
-};
+function makeEntitlement(productId) {
+    return {
+        grace_period_expires_date: null,
+        purchase_date:             now,
+        product_identifier:        productId,
+        expires_date:              farFuture
+    };
+}
 
-var goldEntitlementNMS = {
-    grace_period_expires_date: null,
-    purchase_date:             "2024-01-01T00:00:00Z",
-    product_identifier:        "Gold",
-    expires_date:              "9999-01-09T10:10:14Z"
-};
+var nonSubRecord = [{
+    id:                     "locket_lifetime_mock",
+    is_sandbox:             true,
+    original_purchase_date: now,
+    purchase_date:          now,
+    store:                  "app_store",
+    store_transaction_id:   "2000001108724194"
+}];
 
 if (obj.subscriber) {
-    obj.subscriber.subscriptions = obj.subscriber.subscriptions || {};
-    obj.subscriber.entitlements  = obj.subscriber.entitlements  || {};
+    obj.subscriber.subscriptions     = obj.subscriber.subscriptions     || {};
+    obj.subscriber.entitlements      = obj.subscriber.entitlements      || {};
+    obj.subscriber.non_subscriptions = obj.subscriber.non_subscriptions || {};
+    obj.subscriber.other_purchases   = obj.subscriber.other_purchases   || {};
+    obj.subscriber.first_seen        = obj.subscriber.first_seen        || now;
 
-    // Subscription records
-    obj.subscriber.subscriptions["locket_1600_1y"] = goldSub;
-    obj.subscriber.subscriptions["Gold"]           = goldSub;
+    // active_subscriptions — một số build check array này trực tiếp
+    obj.subscriber.active_subscriptions = [
+        "locket_1600_1y", "Gold", "gold_yearly"
+    ];
 
-    // Entitlements — cover mọi key app có thể check
-    obj.subscriber.entitlements["Gold"]    = goldEntitlement;
-    obj.subscriber.entitlements["gold"]    = goldEntitlement;
-    obj.subscriber.entitlements["GOLD"]    = goldEntitlement;
-    obj.subscriber.entitlements["premium"] = goldEntitlement;
+    // ── Subscriptions ─────────────────────────────────────────────────────
+    [
+        "locket_1600_1y", "Gold", "gold_yearly",
+        "locket_gold",    "locket_399_1y", "locket_gold_yearly"
+    ].forEach(function (key) {
+        obj.subscriber.subscriptions[key] = goldSub;
+    });
 
-    // NMS-compatible: product_identifier = 'Gold' → unlock 30s, voice, video
-    obj.subscriber.entitlements["Locket"]  = goldEntitlementNMS;
+    // ── Entitlements — mọi key variant đã biết ───────────────────────────
+    [
+        "Gold", "gold", "GOLD",
+        "premium", "Premium", "PREMIUM",
+        "locket_gold", "gold_yearly", "GoldYearly"
+    ].forEach(function (key) {
+        obj.subscriber.entitlements[key] = makeEntitlement("locket_1600_1y");
+    });
+
+    // NMS path — product_identifier phải là "Gold" (capital G)
+    obj.subscriber.entitlements["Locket"] = makeEntitlement("Gold");
+
+    // ── Non-subscriptions (lifetime check path) ───────────────────────────
+    [
+        "locket_lifetime", "lifetime",
+        "Lifetime",        "locket_one_time"
+    ].forEach(function (key) {
+        obj.subscriber.non_subscriptions[key] = nonSubRecord;
+    });
 }
 
 $done({ body: JSON.stringify(obj) });
