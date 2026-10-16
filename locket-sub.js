@@ -1,102 +1,71 @@
 /**
  * locket-sub.js  v2.1
- * Locket — RevenueCat subscriber / receipts response patch
+ * Locket — RevenueCat subscriber/receipts response patch
+ * Injects active Gold entitlement
  *
- * Thay đổi so với v2.0:
- *   - Thêm subscriptions['Gold'] + entitlements['Locket'].product_identifier = 'Gold'
- *   - App check string 'Gold' để unlock 30s / voice / video 10s
+ * Target: api.revenuecat.com — receipts & subscribers endpoints
+ * Type:   http-response
  *
- * Target : api.revenuecat.com  (receipts$  |  subscribers/[id]$)
- * Type   : http-response
- * Tested : Locket 3.x – 6.x
- *
- * GitHub : olcphm-ctrl/locket-scripts
+ * Maintainer: tự host — không phụ thuộc server ngoài
  */
 
-(function () {
-    var ua = $request.headers["User-Agent"] || $request.headers["user-agent"] || "";
+var ua  = $request.headers["User-Agent"] || $request.headers["user-agent"] || "";
+var obj = JSON.parse($response.body);
 
-    if (!ua.includes("Locket")) {
-        $done({ body: $response.body });
-        return;
-    }
+if (!ua.includes("Locket")) {
+    $done({ body: $response.body });
+    return;
+}
 
-    var obj;
-    try {
-        obj = JSON.parse($response.body);
-    } catch (e) {
-        $done({ body: $response.body });
-        return;
-    }
+var goldSub = {
+    auto_resume_date:           null,
+    display_name:               "locket_1600_1y",
+    is_sandbox:                 true,
+    ownership_type:             "PURCHASED",
+    billing_issues_detected_at: null,
+    management_url:             "https://apps.apple.com/account/subscriptions",
+    period_type:                "normal",
+    price:                      { amount: 399000.0, currency: "VND" },
+    expires_date:               "9999-01-09T10:10:14Z",
+    grace_period_expires_date:  null,
+    refunded_at:                null,
+    unsubscribe_detected_at:    null,
+    original_purchase_date:     "2024-01-01T00:00:00Z",
+    purchase_date:              "2024-01-01T00:00:00Z",
+    store:                      "app_store",
+    store_transaction_id:       "2000001108724193"
+};
 
-    var GOLD_SKU = "locket_1600_1y";
-    var EXPIRES  = "9999-01-01T00:00:00Z";
-    var PURCHASE = "2020-01-01T00:00:00Z";
+var goldEntitlement = {
+    grace_period_expires_date: null,
+    purchase_date:             "2024-01-01T00:00:00Z",
+    product_identifier:        "locket_1600_1y",
+    expires_date:              "9999-01-09T10:10:14Z"
+};
 
-    var goldSub = {
-        auto_resume_date:           null,
-        billing_issues_detected_at: null,
-        display_name:               GOLD_SKU,
-        expires_date:               EXPIRES,
-        grace_period_expires_date:  null,
-        is_sandbox:                 true,
-        management_url:             "https://apps.apple.com/account/subscriptions",
-        original_purchase_date:     PURCHASE,
-        ownership_type:             "PURCHASED",
-        period_type:                "normal",
-        price:                      { amount: 0.0, currency: "VND" },
-        purchase_date:              PURCHASE,
-        refunded_at:                null,
-        store:                      "app_store",
-        store_transaction_id:       "2000001108724193",
-        unsubscribe_detected_at:    null
-    };
+var goldEntitlementNMS = {
+    grace_period_expires_date: null,
+    purchase_date:             "2024-01-01T00:00:00Z",
+    product_identifier:        "Gold",
+    expires_date:              "9999-01-09T10:10:14Z"
+};
 
-    function makeEnt(pid) {
-        return {
-            expires_date:              EXPIRES,
-            grace_period_expires_date: null,
-            product_identifier:        pid,
-            purchase_date:             PURCHASE
-        };
-    }
+if (obj.subscriber) {
+    obj.subscriber.subscriptions = obj.subscriber.subscriptions || {};
+    obj.subscriber.entitlements  = obj.subscriber.entitlements  || {};
 
-    function patchSubscriber(sub) {
-        sub.subscriptions     = sub.subscriptions     || {};
-        sub.entitlements      = sub.entitlements      || {};
-        sub.non_subscriptions = sub.non_subscriptions || {};
-        sub.other_purchases   = sub.other_purchases   || {};
+    // Subscription records
+    obj.subscriber.subscriptions["locket_1600_1y"] = goldSub;
+    obj.subscriber.subscriptions["Gold"]           = goldSub;
 
-        // SKU thực — subscription record
-        sub.subscriptions[GOLD_SKU] = goldSub;
+    // Entitlements — cover mọi key app có thể check
+    obj.subscriber.entitlements["Gold"]    = goldEntitlement;
+    obj.subscriber.entitlements["gold"]    = goldEntitlement;
+    obj.subscriber.entitlements["GOLD"]    = goldEntitlement;
+    obj.subscriber.entitlements["premium"] = goldEntitlement;
 
-        // NightMarket-compatible: key 'Gold', product_identifier = 'Gold'
-        // App map string này → unlock 30s, voice, video 10s
-        sub.subscriptions["Gold"]  = goldSub;
-        sub.entitlements["Locket"] = makeEnt("Gold");
+    // NMS-compatible: product_identifier = 'Gold' → unlock 30s, voice, video
+    obj.subscriber.entitlements["Locket"]  = goldEntitlementNMS;
+}
 
-        // Cover thêm naming variants
-        ["Gold", "gold", "GOLD", "premium", "Premium"].forEach(function (k) {
-            sub.entitlements[k] = makeEnt(GOLD_SKU);
-        });
-
-        return sub;
-    }
-
-    // RevenueCat wrapped: { subscriber: {...} }
-    if (obj.subscriber) {
-        obj.subscriber = patchSubscriber(obj.subscriber);
-    }
-
-    // Array variant: { subscribers: [{...}] }
-    if (Array.isArray(obj.subscribers)) {
-        obj.subscribers = obj.subscribers.map(patchSubscriber);
-    }
-
-    // Unwrapped subscriber object
-    if (obj.subscriptions !== undefined || obj.entitlements !== undefined) {
-        obj = patchSubscriber(obj);
-    }
-
-    $done({ body: JSON.stringify(obj) });
-})();
+$done({ body: JSON.stringify(obj) });
