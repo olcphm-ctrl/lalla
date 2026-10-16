@@ -1,23 +1,45 @@
 /**
- * locket-header.js
+ * locket-header.js  v2.0
  * Locket — RevenueCat request header patch
- * Clears X-RevenueCat-ETag so server always returns a fresh
- * subscriber response instead of a cached 304
  *
- * Target: api.revenuecat.com
- * Type:   http-request
+ * Xóa ETag / conditional-request headers để server luôn trả về
+ * response đầy đủ (200) thay vì cache 304.
  *
- * Maintainer: tự host — không phụ thuộc server ngoài
+ * Target : api.revenuecat.com  (receipts, subscribers)
+ * Type   : http-request
+ * Tested : Locket 3.x – 6.x
+ *
+ * GitHub : olcphm-ctrl/locket-scripts
  */
 
-var headers = $request.headers;
+(function () {
+    var ua = $request.headers["User-Agent"] || $request.headers["user-agent"] || "";
 
-// Clear ETag — handles both casing variants
-var key = Object.keys(headers).find(k => k.toLowerCase() === "x-revenuecat-etag");
-if (key) {
-    headers[key] = "";
-} else {
-    headers["X-RevenueCat-ETag"] = "";
-}
+    // Chỉ chạy cho Locket; bỏ qua app khác dùng chung RevenueCat
+    if (!ua.includes("Locket")) {
+        $done({});
+        return;
+    }
 
-$done({ headers: headers });
+    var headers = $request.headers;
+
+    // Danh sách headers cần xóa — case-insensitive
+    var stripList = [
+        "x-revenuecat-etag",
+        "if-none-match",
+        "if-modified-since",
+        "if-unmodified-since",
+        "if-match"
+    ];
+
+    Object.keys(headers).forEach(function (k) {
+        if (stripList.indexOf(k.toLowerCase()) !== -1) {
+            delete headers[k];
+        }
+    });
+
+    // Đảm bảo không bao giờ gửi ETag dù key viết hoa hay thường
+    headers["Cache-Control"] = "no-cache, no-store";
+
+    $done({ headers: headers });
+})();
