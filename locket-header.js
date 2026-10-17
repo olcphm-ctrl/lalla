@@ -1,8 +1,8 @@
 /**
- * locket-header.js  v4.0
+ * locket-header.js  v4.1
  * Locket — RevenueCat request header patch
  *
- * GitHub : olcphm-ctrl/locket-scripts
+ * GitHub : olcphm-ctrl/lalla
  */
 
 var headers = $request.headers;
