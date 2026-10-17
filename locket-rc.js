@@ -15,8 +15,8 @@
     }
 
     // ── Duration — đổi số này để thay duration ───────────────────────────
-    var MAX_DURATION     = 15.0;
-    var MAX_DURATION_STR = "15.0";
+    var MAX_DURATION     = 30.0;
+    var MAX_DURATION_STR = "30.0";
 
     // ── Version parse ─────────────────────────────────────────────────────
     var appVersion = [0, 0, 0];
@@ -222,24 +222,8 @@
         });
     } catch (e) {}
 
-    // ── 7. Flat duration keys ─────────────────────────────────────────────
+    // ── 7. Camera roll enable flags + upload settings ─────────────────────
     try {
-        [
-            "camera_roll_video_max_duration",
-            "camera_roll_max_duration",
-            "camera_roll_duration",
-            "max_video_duration",
-            "video_max_duration",
-            "video_trim_max_duration",
-            "trim_max_duration",
-            "gold_max_duration",
-            "goldMaxDuration",
-            "maxDuration",
-            "max_duration",
-            "memory_max_duration",
-            "catch_up_max_duration"
-        ].forEach(function (k) { obj.entries[k] = MAX_DURATION_STR; });
-
         mergeEntries({
             camera_roll_preview_enabled:               "true",
             camera_roll_video_enabled:                 "true",
