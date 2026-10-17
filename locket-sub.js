@@ -1,8 +1,8 @@
 /**
- * locket-sub.js  v4.0
+ * locket-sub.js  v4.1
  * Locket — RevenueCat subscriber response patch
  *
- * GitHub : olcphm-ctrl/locket-scripts
+ * GitHub : olcphm-ctrl/lalla
  */
 
 var ua  = $request.headers["User-Agent"] || $request.headers["user-agent"] || "";
@@ -16,7 +16,7 @@ if (!ua.includes("Locket")) {
 var goldSub = {
     auto_resume_date:           null,
     display_name:               "locket_1600_1y",
-    is_sandbox:                 true,
+    is_sandbox:                 false,
     ownership_type:             "PURCHASED",
     billing_issues_detected_at: null,
     management_url:             "https://apps.apple.com/account/subscriptions",
@@ -44,10 +44,11 @@ if (obj.subscriber) {
     obj.subscriber.entitlements  = obj.subscriber.entitlements  || {};
 
     obj.subscriber.subscriptions["locket_1600_1y"] = goldSub;
-    obj.subscriber.entitlements["Gold"]   = goldEntitlement;
-    obj.subscriber.entitlements["gold"]   = goldEntitlement;
-    obj.subscriber.entitlements["Locket"] = goldEntitlement;
-    obj.subscriber.entitlements["pro"]    = goldEntitlement;
+    obj.subscriber.entitlements["Gold"]    = goldEntitlement;
+    obj.subscriber.entitlements["gold"]    = goldEntitlement;
+    obj.subscriber.entitlements["Locket"]  = goldEntitlement;
+    obj.subscriber.entitlements["pro"]     = goldEntitlement;
+    obj.subscriber.entitlements["premium"] = goldEntitlement;
 }
 
 $done({ body: JSON.stringify(obj) });
