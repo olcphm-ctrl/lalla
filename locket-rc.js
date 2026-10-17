@@ -15,8 +15,8 @@
     }
 
     // ── Duration — đổi số này để thay duration ───────────────────────────
-    var MAX_DURATION     = 30.0;
-    var MAX_DURATION_STR = "30.0";
+    var MAX_DURATION     = 15.0;
+    var MAX_DURATION_STR = "15.0";
 
     // ── Version parse ─────────────────────────────────────────────────────
     var appVersion = [0, 0, 0];
