@@ -1,6 +1,7 @@
 /**
  * locket-sub.js  v4.1
  * Locket — RevenueCat subscriber response patch
+ * + Clear ETag cache — ngăn stale sau khi tắt proxy
  *
  * GitHub : olcphm-ctrl/lalla
  */
@@ -16,7 +17,7 @@ if (!ua.includes("Locket")) {
 var goldSub = {
     auto_resume_date:           null,
     display_name:               "locket_1600_1y",
-    is_sandbox:                 false,
+    is_sandbox:                 true,
     ownership_type:             "PURCHASED",
     billing_issues_detected_at: null,
     management_url:             "https://apps.apple.com/account/subscriptions",
@@ -44,11 +45,19 @@ if (obj.subscriber) {
     obj.subscriber.entitlements  = obj.subscriber.entitlements  || {};
 
     obj.subscriber.subscriptions["locket_1600_1y"] = goldSub;
-    obj.subscriber.entitlements["Gold"]    = goldEntitlement;
-    obj.subscriber.entitlements["gold"]    = goldEntitlement;
-    obj.subscriber.entitlements["Locket"]  = goldEntitlement;
-    obj.subscriber.entitlements["pro"]     = goldEntitlement;
-    obj.subscriber.entitlements["premium"] = goldEntitlement;
+    obj.subscriber.entitlements["Gold"]   = goldEntitlement;
+    obj.subscriber.entitlements["gold"]   = goldEntitlement;
+    obj.subscriber.entitlements["Locket"] = goldEntitlement;
+    obj.subscriber.entitlements["pro"]    = goldEntitlement;
 }
 
-$done({ body: JSON.stringify(obj) });
+// ── Clear ETag cache — ngăn stale sau khi tắt proxy ──────────────────────
+var respHeaders = $response.headers || {};
+delete respHeaders["etag"];
+delete respHeaders["ETag"];
+delete respHeaders["last-modified"];
+delete respHeaders["Last-Modified"];
+respHeaders["Cache-Control"] = "no-store, no-cache, must-revalidate";
+respHeaders["Pragma"]        = "no-cache";
+
+$done({ body: JSON.stringify(obj), headers: respHeaders });
